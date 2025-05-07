@@ -15,11 +15,20 @@ fn main() {
             ..default()
         }))
         .add_plugins(MeshPickingPlugin)
+        .add_event::<AbacusChanged>()
         .add_systems(Startup, setup)
-        .add_systems(Update, move_all_abacus_beads)
-        .add_systems(Update, animate_beads)
-        .add_systems(Update, update_abacus_values)
-        .add_systems(Update, update_abacus_texts)
+        .add_systems(Update, 
+            (
+                move_all_abacus_beads,
+                animate_beads,
+            )
+        )
+        .add_systems(Update, 
+        (
+                update_abacus_values,
+                update_abacus_texts
+            ).run_if(on_event::<AbacusChanged>),
+        )
         .run();
 }
 
@@ -36,7 +45,7 @@ fn setup(
     commands.spawn((
         MainCameraAnchor,
         Projection::from(PerspectiveProjection::default()),
-        Transform::from_xyz(0.0, 5., -14.0).looking_at(Vec3::new(0., 2., 0.), Vec3::Y),
+        Transform::from_xyz(0.0, 4., -14.0).looking_at(Vec3::new(0., 2., 0.), Vec3::Y),
         children![
             (
                 Camera2d,
@@ -62,7 +71,7 @@ fn setup(
         Transform::from_xyz(8.0, 16.0, -8.0),
     ));
     
-    abacus::spawn_abacus(&mut commands, &mut meshes, &mut materials, 9, 2, 8);
+    abacus::spawn_abacus(&mut commands, &mut meshes, &mut materials, 9, 2, 5);
 }
 
 fn move_all_abacus_beads(

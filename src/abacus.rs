@@ -2,15 +2,21 @@ use bevy::prelude::*;
 use std::f32::consts::PI;
 use bevy::color::palettes::tailwind;
 
+#[derive(Event)]
+pub struct AbacusChanged;
+
 pub const BEAD_HEIGHT: f32 = 0.4;
 pub const BEAD_SPACING: f32 = 0.5;
 pub const LONG_SPACING: f32 = 0.8;
 pub const COLUMN_SPACING: f32 = 1.1;
 pub const ROW_SPACING: f32 = 0.4;
 //pub const BEAD_COUNT: usize = 5;
+pub const FRAME_THICKNESS: f32 = 0.1;
 
 pub const BEAD_NORMAL_COLOR: Srgba = tailwind::RED_600;
 pub const BEAD_HOVER_COLOR: Srgba = tailwind::RED_200;
+
+pub const FRAME_COLOR: Srgba = tailwind::ZINC_700;
 
 #[derive(Component)]
 #[relationship(relationship_target = BeadsOf)]
@@ -75,8 +81,8 @@ fn update_material_on<E>(
     }
 }
 
-fn update_long_value<E>() -> impl Fn(Trigger<E>, Query<(&AbacusBead, &BelongsTo)>, Query<&mut AbacusLong>) {
-    move |trigger, beads, mut longs| {
+fn update_long_value<E>() -> impl Fn(Trigger<E>, Query<(&AbacusBead, &BelongsTo)>, Query<&mut AbacusLong>, Commands) {
+    move |trigger, beads, mut longs, mut commands| {
         if let Ok((bead, BelongsTo(long))) = beads.get(trigger.target()) {
             if let Ok(mut abacus_long) = longs.get_mut(*long) {
                 if abacus_long.value != bead.value {
@@ -84,6 +90,8 @@ fn update_long_value<E>() -> impl Fn(Trigger<E>, Query<(&AbacusBead, &BelongsTo)
                 } else {
                     abacus_long.value = bead.value.saturating_sub(1);
                 }
+
+                commands.send_event(AbacusChanged);
                 info!("Abacus Long Value Now {}", abacus_long.value);
             }
         }
@@ -103,12 +111,24 @@ pub fn spawn_abacus_long(
     bead_count: usize,
 ) -> Entity {
     let mut beads = Vec::new();
+
+    let abacus_long_height = bead_count as f32 * BEAD_SPACING + LONG_SPACING + FRAME_THICKNESS*2.0;
+    let abacus_long_width = FRAME_THICKNESS;
     
     // Spawn the abacus long with the beads
     let abacus_long = commands.spawn((
         AbacusLong {
             value: 0,
         },
+        InheritedVisibility::default(),
+        children![
+            (
+                Mesh3d(meshes.add(Extrusion::new(Circle::new(abacus_long_width), abacus_long_height))),
+                MeshMaterial3d(materials.add(Color::from(FRAME_COLOR))),
+                Transform::from_xyz(0.0, abacus_long_height/2.0 - BEAD_SPACING/2.0 - FRAME_THICKNESS, 0.0).with_rotation(Quat::from_rotation_x(PI / 2.0)),
+                Pickable::IGNORE,
+            )
+        ],
         Transform::from_xyz(0.0, 0.0, 0.0),
     )).id();
 
