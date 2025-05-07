@@ -97,6 +97,14 @@
                 document.addEventListener(eventName, resumeAllContexts);
             });
         })();
+
+        function is_mobile_device() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                   (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
+        }
+
+        // Make it available to Rust
+        window.is_mobile_device = is_mobile_device;
     </script>
     <script type="module">
         import init from './out/Abacus-Simulator.js'

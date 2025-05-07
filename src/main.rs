@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
+use bevy::winit::{WinitSettings, UpdateMode};
+use std::time::Duration;
 
 use abacus::*;
 
@@ -30,9 +32,12 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
+                // Make it resize to the available space
                 fit_canvas_to_parent: true,
-                resizable: true,
-                prevent_default_event_handling: false,
+                // Prevents issues with touch scrolling and back/forward gestures
+                prevent_default_event_handling: true,
+                // Don't allow resizing (can crash on some mobile browsers if left true)
+                resizable: false,
                 ..default()
             }),
             ..default()
@@ -55,7 +60,12 @@ fn main() {
                 update_abacus_texts
             ).run_if(on_event::<AbacusChanged>),
         )
+        .add_systems(Startup, init_refresh_rate)
         .run();
+}
+
+fn init_refresh_rate(mut winit: ResMut<WinitSettings>) {
+    winit.focused_mode = UpdateMode::reactive(Duration::from_secs_f32(1.0 / 60.0));
 }
 
 #[derive(Component)]
@@ -212,7 +222,7 @@ fn ui_system(
             ui.label("Structure:");
             ui.add(egui::Slider::new(&mut settings.column_count, 1..=20).text("Columns"));
             ui.add(egui::Slider::new(&mut settings.top_bead_count, 0..=2).text("Top Beads"));
-            ui.add(egui::Slider::new(&mut settings.bottom_bead_count, 1..=9).text("Bottom Beads"));
+            ui.add(egui::Slider::new(&mut settings.bottom_bead_count, 1..=10).text("Bottom Beads"));
             
             ui.add_space(10.0);
             ui.label("Display Options:");

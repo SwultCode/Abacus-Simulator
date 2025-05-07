@@ -20,6 +20,24 @@ This is a personal project, I'm not an abacus expert so historical accuracy is n
 This abacus simulator has been designed for educational purposes, currently through configuring you can explore:
 - [The Suanpan (or Chinese abacus)](https://en.wikipedia.org/wiki/Suanpan) in common 4+1, 5+1, and 5+2 configurations
 
+## Building
+
+If you want to build the project yourself, run the following:
+
+```
+cargo build --release --target wasm32-unknown-unknown
+```
+
+```
+wasm-bindgen --out-dir ./webbuild/out/ --target web ./target/wasm32-unknown-unknown/release/Abacus-Simulator.wasm 
+```
+
+```
+npx serve webbuild
+```
+
+Now you should be able to see the abacus in your local network!
+
 ## License
 
 [MIT License](LICENSE)

@@ -33,6 +33,20 @@ pub struct AbacusBead {
     pub target: Vec3,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+fn is_mobile_device() -> bool {
+    false // Default to desktop for non-wasm builds
+}
+
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+extern "C" {
+    fn is_mobile_device() -> bool;
+}
+
 pub fn spawn_abacus_bead (
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -42,7 +56,7 @@ pub fn spawn_abacus_bead (
     let norm_material = materials.add(Color::from(BEAD_NORMAL_COLOR));
     let hover_material = materials.add(Color::from(BEAD_HOVER_COLOR));
 
-    commands.spawn(
+    let mut entity_builder = commands.spawn(
         (AbacusBead {
             value: value,
             target: Vec3::new(0.0, 0.0, 0.0),
@@ -54,19 +68,26 @@ pub fn spawn_abacus_bead (
             Visibility::Inherited,
             InheritedVisibility::default(),
         )
-    )
-    .observe(update_long_value::<Pointer<Click>>())
-    .observe(update_material_on::<Pointer<Over>>(hover_material.clone()))
-    .observe(update_material_on::<Pointer<Out>>(norm_material.clone()))
-    .id()
+    );
+    
+    // Always observe click events
+    entity_builder.observe(update_long_value::<Pointer<Click>>());
+    
+    //info!("is_mobile_device: {}", is_mobile_device());
+
+    // Only add hover effects for non-mobile devices
+    if !is_mobile_device() {
+        entity_builder
+            .observe(update_material_on::<Pointer<Over>>(hover_material.clone()))
+            .observe(update_material_on::<Pointer<Out>>(norm_material.clone()));
+    }
+    
+    entity_builder.id()
 }
 
 fn update_material_on<E>(
     new_material: Handle<StandardMaterial>,
 ) -> impl Fn(Trigger<E>, Query<&mut MeshMaterial3d<StandardMaterial>>) {
-    // An observer closure that captures `new_material`. We do this to avoid needing to write four
-    // versions of this observer, each triggered by a different event and with a different hardcoded
-    // material. Instead, the event type is a generic, and the material is passed in.
     move |trigger, mut query| {
         if let Ok(mut material) = query.get_mut(trigger.target()) {
             material.0 = new_material.clone();
@@ -128,7 +149,6 @@ pub fn spawn_abacus_long(
         Transform::from_xyz(0.0, 0.0, 0.0),
     )).id();
 
-    // Spawn 5 beads and collect their entity IDs
     for i in 0..bead_count {
         let new_bead = spawn_abacus_bead(commands, meshes, materials, i as u64 + 1);
 
@@ -141,9 +161,6 @@ pub fn spawn_abacus_long(
 
         beads.push(new_bead);
     }
-    
-    // Store the beads list in the BeadsOf component
-    //commands.entity(abacus_long).insert(BeadsOf(beads));
 
     abacus_long
 }
