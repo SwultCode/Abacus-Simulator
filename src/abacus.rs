@@ -55,19 +55,10 @@ pub fn spawn_abacus_bead (
             InheritedVisibility::default(),
         )
     )
-    //.observe(hover_bead::<Pointer<Over>>())
     .observe(update_long_value::<Pointer<Click>>())
     .observe(update_material_on::<Pointer<Over>>(hover_material.clone()))
     .observe(update_material_on::<Pointer<Out>>(norm_material.clone()))
     .id()
-}
-
-fn hover_bead<E>() -> impl Fn(Trigger<E>, Query<&mut AbacusBead>) {
-    move |trigger, mut query| {
-        if let Ok(bead) = query.get_mut(trigger.target()) {
-            info!("{}", bead.value);
-        }
-    }
 }
 
 fn update_material_on<E>(

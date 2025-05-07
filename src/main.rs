@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy::window::PresentMode;
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 
 use abacus::*;
@@ -13,7 +12,6 @@ struct AbacusSettings {
     bottom_bead_count: usize,
     show_top_text: bool,
     show_column_texts: bool,
-    rebuild_requested: bool,
 }
 
 impl Default for AbacusSettings {
@@ -24,7 +22,6 @@ impl Default for AbacusSettings {
             bottom_bead_count: 5,
             show_top_text: true,
             show_column_texts: true,
-            rebuild_requested: false,
         }
     }
 }
