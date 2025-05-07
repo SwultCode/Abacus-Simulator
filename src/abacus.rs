@@ -50,7 +50,9 @@ pub fn spawn_abacus_bead (
             Transform::from_xyz(0.0, 0.0, 0.0)
                 .with_rotation(Quat::from_rotation_x(PI / 2.0)),
             Mesh3d(meshes.add(Extrusion::new(Circle::default(), BEAD_HEIGHT))),
-            MeshMaterial3d(norm_material.clone())
+            MeshMaterial3d(norm_material.clone()),
+            Visibility::Inherited,
+            InheritedVisibility::default(),
         )
     )
     //.observe(hover_bead::<Pointer<Over>>())
@@ -85,10 +87,10 @@ fn update_long_value<E>() -> impl Fn(Trigger<E>, Query<(&AbacusBead, &BelongsTo)
     move |trigger, beads, mut longs, mut commands| {
         if let Ok((bead, BelongsTo(long))) = beads.get(trigger.target()) {
             if let Ok(mut abacus_long) = longs.get_mut(*long) {
-                if abacus_long.value != bead.value {
-                    abacus_long.value = bead.value;
+                if abacus_long.value + 1 != bead.value {
+                    abacus_long.value = bead.value - 1;
                 } else {
-                    abacus_long.value = bead.value.saturating_sub(1);
+                    abacus_long.value = bead.value;
                 }
 
                 commands.send_event(AbacusChanged);
@@ -118,15 +120,18 @@ pub fn spawn_abacus_long(
     // Spawn the abacus long with the beads
     let abacus_long = commands.spawn((
         AbacusLong {
-            value: 0,
+            value: bead_count as u64,
         },
         InheritedVisibility::default(),
+        Visibility::Inherited,
         children![
             (
                 Mesh3d(meshes.add(Extrusion::new(Circle::new(abacus_long_width), abacus_long_height))),
                 MeshMaterial3d(materials.add(Color::from(FRAME_COLOR))),
                 Transform::from_xyz(0.0, abacus_long_height/2.0 - BEAD_SPACING/2.0 - FRAME_THICKNESS, 0.0).with_rotation(Quat::from_rotation_x(PI / 2.0)),
                 Pickable::IGNORE,
+                Visibility::Inherited,
+                InheritedVisibility::default(),
             )
         ],
         Transform::from_xyz(0.0, 0.0, 0.0),
@@ -135,10 +140,19 @@ pub fn spawn_abacus_long(
     // Spawn 5 beads and collect their entity IDs
     for i in 0..bead_count {
         let new_bead = spawn_abacus_bead(commands, meshes, materials, i as u64 + 1);
-        commands.entity(new_bead).insert(BelongsTo(abacus_long));
-        commands.entity(new_bead).insert(ChildOf(abacus_long));
+
+        commands.entity(new_bead).insert((
+            BelongsTo(abacus_long),
+            ChildOf(abacus_long),
+            Visibility::Inherited,
+            InheritedVisibility::default(),
+        ));
+
         beads.push(new_bead);
     }
+    
+    // Store the beads list in the BeadsOf component
+    //commands.entity(abacus_long).insert(BeadsOf(beads));
 
     abacus_long
 }
@@ -235,6 +249,8 @@ pub fn spawn_abacus(
             Text2d::new("0"),
             text_font.clone(),
             Transform::from_xyz(x, y, 0.0).with_scale(scale.clone()),
+            Visibility::Inherited,
+            InheritedVisibility::default(),
         )).id();
         column_texts.push(text_entity);
     }
@@ -244,19 +260,24 @@ pub fn spawn_abacus(
         Text2d::new("0"),
         text_font.clone(),
         Transform::from_xyz(0.0, top_long_y + 2.0, 0.0).with_scale(scale.clone()),
+        Visibility::Inherited,
+        InheritedVisibility::default(),
     )).id();
 
 
     // Spawn the Abacus component with clones of the entity lists
-    let abacus_id = commands.spawn(Abacus {
-        top_longs: top_longs_temp.clone(),
-        bottom_longs: bottom_longs_temp.clone(),
-        column_texts: column_texts.clone(),
-        total_text: total_text_entity,
-        top_bead_count: top_bead_count,
-        bottom_bead_count: bottom_bead_count,
-        total_value: 0,
-    }).id();
+    let abacus_id = commands.spawn((
+        Abacus {
+            top_longs: top_longs_temp.clone(),
+            bottom_longs: bottom_longs_temp.clone(),
+            column_texts: column_texts.clone(),
+            total_text: total_text_entity,
+            top_bead_count: top_bead_count,
+            bottom_bead_count: bottom_bead_count,
+            total_value: 0,
+        },
+        InheritedVisibility::default(),
+    )).id();
 
     // Set up Bevy's standard parent-child hierarchy
     for &top_long_entity in &top_longs_temp {
@@ -266,4 +287,11 @@ pub fn spawn_abacus(
     for &bottom_long_entity in &bottom_longs_temp {
         commands.entity(abacus_id).add_child(bottom_long_entity);
     }
+    
+    // Add text entities as children of the abacus
+    for &text_entity in &column_texts {
+        commands.entity(abacus_id).add_child(text_entity);
+    }
+    
+    commands.entity(abacus_id).add_child(total_text_entity);
 }

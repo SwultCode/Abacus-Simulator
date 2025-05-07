@@ -8,3 +8,4 @@ runner = "wasm-server-runner"
 
 [dependencies]
 bevy = "0.16.0"
+bevy_egui = "0.34.1"
