@@ -39,12 +39,26 @@ impl FromWorld for UserConfigurations {
         // Pre-populate with some default configurations
         let default_configs = vec![
             SavableAbacusConfig {
-                name: "Suanpan (Chinese 2/5)".to_string(),
+                name: "Suanpan (Chinese 2/5) - Base 10".to_string(),
                 column_count: 9,
                 top_bead_count: 2, // 2 beads in the upper deck
                 bottom_bead_count: 5, // 5 beads in the lower deck
                 top_bead_base_value: 5, // Each upper bead is worth 5 (when moved against the bar)
                 abacus_base: 10, // Typically used for decimal calculations
+                show_top_text: true,
+                show_column_texts: true,
+                // Placeholder colors - you can refine these to match typical abacus colors
+                ui_bead_color: Color::srgb(0.6, 0.3, 0.1), // Brownish beads
+                ui_bead_hover_color: Color::srgb(0.7, 0.4, 0.2),
+                ui_frame_color: Color::srgb(0.3, 0.2, 0.1), // Dark wood frame
+            },
+            SavableAbacusConfig {
+                name: "Suanpan (Chinese 2/5) - Base 16".to_string(),
+                column_count: 9,
+                top_bead_count: 2, // 2 beads in the upper deck
+                bottom_bead_count: 5, // 5 beads in the lower deck
+                top_bead_base_value: 5, // Each upper bead is worth 5 (when moved against the bar)
+                abacus_base: 16,
                 show_top_text: true,
                 show_column_texts: true,
                 // Placeholder colors - you can refine these to match typical abacus colors
@@ -177,6 +191,19 @@ impl SavableAbacusConfig {
     }
 }
 
+#[derive(Resource)]
+struct WelcomeUiState {
+    show_welcome: bool,
+}
+
+impl Default for WelcomeUiState {
+    fn default() -> Self {
+        Self {
+            show_welcome: true, // Show by default on first launch
+        }
+    }
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -195,6 +222,7 @@ fn main() {
         .add_event::<AbacusChanged>()
         .init_resource::<AbacusSettings>()
         .init_resource::<UserConfigurations>()
+        .init_resource::<WelcomeUiState>()
         .add_systems(Startup, setup)
         .add_systems(Update, 
             (
@@ -202,6 +230,7 @@ fn main() {
                 animate_beads,
                 update_text_visibility,
                 ui_system,
+                welcome_ui_system,
                 abacus_rotation_system,
             )
         )
@@ -209,7 +238,7 @@ fn main() {
         (
                 update_abacus_values,
                 update_abacus_texts
-            ).run_if(on_event::<AbacusChanged>),
+            ).chain().run_if(on_event::<AbacusChanged>),
         )
         .add_systems(Startup, init_refresh_rate)
         .run();
@@ -336,16 +365,58 @@ fn update_abacus_texts(
     mut text_query: Query<&mut Text2d>,
 ) {
     for abacus in &abacus_query {
+        // Format based on abacus numeric base
+        let base = abacus.abacus_base;
+        
         // Update total value text
         if let Ok(mut text) = text_query.get_mut(abacus.total_text) {
             text.0 = abacus.total_value.to_string();
         }
+        
         // Update each column's value text
         for (i, &text_entity) in abacus.column_texts.iter().enumerate() {
             let col_value = abacus.get_column_value(i, &abacus_long_query);
             if let Ok(mut text) = text_query.get_mut(text_entity) {
-                text.0 = col_value.to_string();
+                    let base_repr = format_number_in_base(col_value, base);
+                    text.0 = format!("{}", base_repr);
             }
+        }
+    }
+}
+
+/// Formats a number in the specified base (supports bases 2-36)
+fn format_number_in_base(value: u64, base: u64) -> String {
+    match base {
+        2 => format!("{:b}", value),    // Binary
+        8 => format!("{:o}", value),    // Octal
+        10 => value.to_string(),        // Decimal
+        16 => format!("{:X}", value),   // Hexadecimal
+        // For other bases, use a custom implementation
+        _ if base > 1 && base <= 36 => {
+            if value == 0 {
+                return "0".to_string();
+            }
+            
+            let mut result = String::new();
+            let mut n = value;
+            
+            while n > 0 {
+                let remainder = (n % base) as u8;
+                let digit = if remainder < 10 {
+                    (b'0' + remainder) as char
+                } else {
+                    (b'A' + remainder - 10) as char
+                };
+                result.insert(0, digit);
+                n /= base;
+            }
+            
+            result
+        },
+        // Fallback to decimal for invalid bases
+        _ => {
+            warn!("Unsupported base: {}. Using decimal representation.", base);
+            value.to_string()
         }
     }
 }
@@ -719,4 +790,63 @@ fn apply_config(
     if let Some(material) = materials.get_mut(&settings.frame_material) {
         material.base_color = settings.ui_frame_color;
     }
+}
+
+fn welcome_ui_system(
+    mut contexts: EguiContexts,
+    mut welcome_state: ResMut<WelcomeUiState>,
+) {
+    if !welcome_state.show_welcome {
+        return;
+    }
+
+    let ctx = contexts.ctx_mut();
+    
+    egui::Window::new("Welcome to Abacus Simulator")
+        .collapsible(false)
+        .resizable(true)
+        .default_width(500.0)
+        .default_pos([300.0, 150.0])
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            ui.heading("Welcome to Abacus Simulator!");
+            ui.add_space(10.0);
+            
+            ui.label("This interactive simulator lets you explore different types of abaci from around the world.");
+            ui.add_space(10.0);
+            
+            ui.collapsing("Controls", |ui| {
+                ui.label("• Click on beads to move them up/down");
+                ui.label("• Right-click and drag to rotate the 3D view");
+                ui.label("• Use the Reset Rotation button to return to default view");
+                ui.label("• Use the Set Value field to set a specific number");
+                ui.label("• Use Add/Subtract to perform calculations");
+                ui.label("• Numbers display in the selected numeric base (e.g., base 16 shows 10 as 'A')");
+            });
+
+            ui.collapsing("Save/Load Configurations", |ui| {
+                ui.label("• Save and load different abacus configurations");
+            });
+            
+            ui.collapsing("Abacus Types (Available in Save/Load Configurations)", |ui| {
+                ui.label("• Suanpan (Chinese): 2 top beads worth 5 each, 5 bottom beads");
+                ui.label("• Soroban (Japanese): 1 top bead worth 5, 4 bottom beads");
+                ui.label("• Binary: Represents binary numbers (base 2)");
+                ui.label("• Custom: Create your own abacus configuration!");
+            });
+            
+            ui.collapsing("Customization", |ui| {
+                ui.label("You can customize:");
+                ui.label("• Number of columns");
+                ui.label("• Number of beads (top and bottom sections)");
+                ui.label("• Value of top beads");
+                ui.label("• Numeric base (decimal, binary, hexadecimal, etc.)");
+                ui.label("• Colors of beads and frame");
+            });
+            
+            ui.add_space(15.0);
+            if ui.button("Close").clicked() {
+                welcome_state.show_welcome = false;
+            }
+        });
 }

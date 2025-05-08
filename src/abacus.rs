@@ -176,10 +176,10 @@ pub struct Abacus {
     pub bottom_longs: Vec<Entity>,
     pub column_texts: Vec<Entity>,
     pub total_text: Entity,
-    top_bead_count: usize,
-    bottom_bead_count: usize,
-    top_bead_base_value: u64,
-    abacus_base: u64,
+    pub top_bead_count: usize,
+    pub bottom_bead_count: usize,
+    pub top_bead_base_value: u64,
+    pub abacus_base: u64,
     pub total_value: u64,
 }
 
@@ -207,11 +207,7 @@ impl Abacus {
         
         // Value from bottom beads + (is top active * top bead base value)
         // Check top_bead_count > 0 before using top_bead_base_value
-        let top_contribution = if self.top_bead_count > 0 {
-             (top_long_val % 2) * self.top_bead_base_value
-        } else {
-            0
-        };
+        let top_contribution =  (top_long_val) * self.top_bead_base_value;
         
         (self.bottom_bead_count as u64 - bottom_long_val) + top_contribution
     }
@@ -244,12 +240,14 @@ impl Abacus {
         }
 
         let max_bottom_value = self.bottom_bead_count as u64;
-        // Max value assumes top bead contributes top_bead_base_value if active
-        let max_column_value = if self.top_bead_count > 0 {
-             max_bottom_value + self.top_bead_base_value 
+        // Max top contribution (all top beads activated)
+        let max_top_contribution = if self.top_bead_count > 0 {
+            self.top_bead_count as u64 * self.top_bead_base_value
         } else {
-             max_bottom_value
+            0
         };
+        // Max column value is sum of max bottom value and max top contribution
+        let max_column_value = max_bottom_value + max_top_contribution;
 
         // Clamp the target value
         let clamped_value = target_value.min(max_column_value);
@@ -257,23 +255,24 @@ impl Abacus {
         let top_long_entity = self.top_longs[column_index];
         let bottom_long_entity = self.bottom_longs[column_index];
 
-        let mut top_active = false;
+        // Determine how many top beads to activate (0 to top_bead_count)
+        let mut top_beads_to_activate = 0;
         let mut value_from_bottom = clamped_value;
 
-        // Determine if top bead needs activation and adjust remaining value
+        // Try to activate top beads if available and needed
         if self.top_bead_count > 0 && clamped_value >= self.top_bead_base_value {
-            top_active = true;
-            value_from_bottom = clamped_value - self.top_bead_base_value;
+            // Calculate how many top beads to activate (integer division)
+            top_beads_to_activate = (clamped_value / self.top_bead_base_value).min(self.top_bead_count as u64);
+            // Remaining value to be represented by bottom beads
+            value_from_bottom = clamped_value - (top_beads_to_activate * self.top_bead_base_value);
         }
 
         // Ensure value_from_bottom doesn't exceed what bottom beads can show
         value_from_bottom = value_from_bottom.min(max_bottom_value);
 
-        // Update top AbacusLong
+        // Update top AbacusLong - set value directly to number of beads to activate
         if let Ok(mut top_long) = abacus_long_query.get_mut(top_long_entity) {
-            // Set based on activation state. Using 1 for active (odd), 0 for inactive (even).
-            // Assumes get_column_value uses % 2 correctly.
-            top_long.value = if top_active { 1 } else { 0 };
+            top_long.value = top_beads_to_activate;
         } else {
             error!("Failed to get mutable AbacusLong for top entity at index {}", column_index);
         }
@@ -300,14 +299,17 @@ impl Abacus {
         let num_columns = self.top_longs.len();
         
         // Calculate the maximum possible value the abacus can hold with current settings
-        let max_column_val = if self.top_bead_count > 0 { 
-             self.bottom_bead_count as u64 + self.top_bead_base_value 
+        let max_bottom_val = self.bottom_bead_count as u64;
+        let max_top_val = if self.top_bead_count > 0 { 
+            self.top_bead_count as u64 * self.top_bead_base_value
         } else { 
-             self.bottom_bead_count as u64 
+            0 
         };
+        let max_column_val = max_bottom_val + max_top_val;
+        
         let mut max_abacus_val = 0;
         for i in 0..num_columns {
-             max_abacus_val += max_column_val * self.abacus_base.pow(i as u32);
+            max_abacus_val += max_column_val * self.abacus_base.pow(i as u32);
         }
         
         // Clamp the target value to what the abacus can represent
@@ -319,13 +321,13 @@ impl Abacus {
         for i in (0..num_columns).rev() {
             let base_power = self.abacus_base.pow(i as u32);
             if base_power == 0 && remaining_value > 0 && i > 0 { // Avoid division by zero for large bases/powers
-                 warn!("Abacus base calculation overflow for column {}, skipping", i);
-                 continue;
+                warn!("Abacus base calculation overflow for column {}, skipping", i);
+                continue;
             }
             if base_power == 0 && i == 0 { // Handle the last column if base is huge
-                 let column_value = remaining_value;
-                 self.set_column_value(i, column_value, abacus_long_query, commands);
-                 remaining_value = 0;
+                let column_value = remaining_value;
+                self.set_column_value(i, column_value, abacus_long_query, commands);
+                remaining_value = 0;
             } else {
                 let column_value = remaining_value / base_power;
                 self.set_column_value(i, column_value, abacus_long_query, commands);
