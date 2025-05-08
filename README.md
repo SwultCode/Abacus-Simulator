@@ -18,7 +18,10 @@ You can access the live demo at: [https://swultcode.github.io/Abacus-Simulator/]
 This is a personal project, I'm not an abacus expert so historical accuracy is not guaranteed.
 
 This abacus simulator has been designed for educational purposes, currently through configuring you can explore:
-- [The Suanpan (or Chinese abacus)](https://en.wikipedia.org/wiki/Suanpan) in common 4+1, 5+1, and 5+2 configurations
+- The Suanpan (or Chinese abacus) in 2/5 configuration
+- The Soroban (or Japanese abacus) in 1/4 configuration
+- A binary counter
+- Your own custom abacus's
 
 ## Building
 
